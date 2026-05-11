@@ -1,3 +1,5 @@
+package com.oaktree.reconciliation.model;
+
 public enum Broker {
     A("Broker A"),
     B("Broker B");

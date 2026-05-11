@@ -1,0 +1,12 @@
+{
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.maven.enabled": true,
+  "java.import.gradle.enabled": false,
+  "java.project.importOnFirstTimeStartup": "automatic",
+  "java.maven.downloadSources": true,
+  "java.autobuild.enabled": true,
+  "files.associations": {
+    "*.java": "java"
+  },
+  "java.compile.nullAnalysis.mode": "disabled"
+}

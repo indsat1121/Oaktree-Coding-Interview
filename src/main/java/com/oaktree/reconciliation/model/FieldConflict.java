@@ -1,19 +1,21 @@
+package com.oaktree.reconciliation.model;
+
 public class FieldConflict {
 
-    private final String trade_id;
+    private final String tradeId;
     private final String fieldName;
     private final String valueA;
     private final String valueB;
 
-    public FieldConflict(String trade_id, String fieldName, String valueA, String valueB) {
-        this.trade_id = trade_id;
+    public FieldConflict(String tradeId, String fieldName, String valueA, String valueB) {
+        this.tradeId = tradeId;
         this.fieldName = fieldName;
         this.valueA = valueA;
         this.valueB = valueB;
     }
 
-    public String getTrade_id() {
-        return trade_id;
+    public String getTradeId() {
+        return tradeId;
     }
 
     public String getFieldName() {

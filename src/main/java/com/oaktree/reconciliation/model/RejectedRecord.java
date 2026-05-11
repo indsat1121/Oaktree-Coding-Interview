@@ -1,12 +1,14 @@
+package com.oaktree.reconciliation.model;
+
 public class RejectedRecord {
 
     private final Broker broker;
-    private final String trade_id;
+    private final String tradeId;
     private final String reason;
 
-    public RejectedRecord(Broker broker, String trade_id, String reason) {
+    public RejectedRecord(Broker broker, String tradeId, String reason) {
         this.broker = broker;
-        this.trade_id = trade_id;
+        this.tradeId = tradeId;
         this.reason = reason;
     }
 
@@ -14,8 +16,8 @@ public class RejectedRecord {
         return broker;
     }
 
-    public String getTrade_id() {
-        return trade_id;
+    public String getTradeId() {
+        return tradeId;
     }
 
     public String getReason() {

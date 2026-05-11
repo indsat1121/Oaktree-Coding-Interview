@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Run Maven using a JDK that includes javac (not a JRE-only install).
+# Fixes: "No compiler is provided in this environment. Perhaps you are running on a JRE rather than a JDK?"
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+has_javac() {
+  [[ -n "${1:-}" && -x "${1}/bin/javac" ]]
+}
+
+if has_javac "${JAVA_HOME:-}"; then
+  :
+elif [[ "$(uname -s)" == "Darwin" && -x /usr/libexec/java_home ]]; then
+  for v in 21 20 17 11 1.8; do
+    if JH="$(/usr/libexec/java_home -v "$v" 2>/dev/null)"; then
+      if has_javac "$JH"; then
+        export JAVA_HOME="$JH"
+        break
+      fi
+    fi
+  done
+elif command -v javac >/dev/null 2>&1; then
+  _javac="$(command -v javac)"
+  export JAVA_HOME="$(dirname "$(dirname "$_javac")")"
+fi
+
+if ! has_javac "${JAVA_HOME:-}"; then
+  echo "mvn: No JDK with javac found (JAVA_HOME=${JAVA_HOME:-<unset>})." >&2
+  echo "  Install a JDK (Temurin .pkg is fine if Homebrew is broken): https://adoptium.net/" >&2
+  echo "  Then:  export JAVA_HOME=\$(/usr/libexec/java_home -v 17)   # or match: /usr/libexec/java_home -V" >&2
+  exit 1
+fi
+
+export PATH="${JAVA_HOME}/bin:${PATH}"
+exec mvn "$@"

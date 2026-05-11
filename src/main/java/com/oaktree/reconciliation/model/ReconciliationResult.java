@@ -1,3 +1,5 @@
+package com.oaktree.reconciliation.model;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -6,13 +8,13 @@ public class ReconciliationResult {
 
     private final List<RejectedRecord> rejectedRecords;
     private final List<FieldConflict> conflicts;
-    private final List<Trade_Data> unifiedTrades;
+    private final List<TradeData> unifiedTrades;
     private final ReconciliationSummary summary;
 
     public ReconciliationResult(
             List<RejectedRecord> rejectedRecords,
             List<FieldConflict> conflicts,
-            List<Trade_Data> unifiedTrades,
+            List<TradeData> unifiedTrades,
             ReconciliationSummary summary) {
         this.rejectedRecords = Collections.unmodifiableList(new ArrayList<>(rejectedRecords));
         this.conflicts = Collections.unmodifiableList(new ArrayList<>(conflicts));
@@ -28,7 +30,7 @@ public class ReconciliationResult {
         return conflicts;
     }
 
-    public List<Trade_Data> getUnifiedTrades() {
+    public List<TradeData> getUnifiedTrades() {
         return unifiedTrades;
     }
 

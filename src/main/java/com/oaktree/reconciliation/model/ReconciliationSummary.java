@@ -1,3 +1,5 @@
+package com.oaktree.reconciliation.model;
+
 public class ReconciliationSummary {
 
     private final int brokerATotal;
