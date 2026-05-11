@@ -1,5 +1,6 @@
 package com.oaktree.reconciliation.model;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public class TradeData {
@@ -7,8 +8,8 @@ public class TradeData {
     private String tradeId;
     private String symbol;
     private String side;
-    private double quantity;
-    private double price;
+    private BigDecimal quantity;
+    private BigDecimal price;
     private LocalDate tradeDate;
     private LocalDate settlementDate;
     private String accountId;
@@ -40,19 +41,19 @@ public class TradeData {
         this.side = side;
     }
 
-    public double getQuantity() {
+    public BigDecimal getQuantity() {
         return quantity;
     }
 
-    public void setQuantity(double quantity) {
+    public void setQuantity(BigDecimal quantity) {
         this.quantity = quantity;
     }
 
-    public double getPrice() {
+    public BigDecimal getPrice() {
         return price;
     }
 
-    public void setPrice(double price) {
+    public void setPrice(BigDecimal price) {
         this.price = price;
     }
 

@@ -10,7 +10,7 @@ test:
 	$(MVN) -q test
 
 run: compile
-	java -cp target/classes com.oaktree.reconciliation.TradeReconciliationMain
+	$(MVN) -q exec:java
 
 clean:
 	$(MVN) -q clean

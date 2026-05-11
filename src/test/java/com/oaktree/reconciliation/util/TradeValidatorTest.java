@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 
@@ -21,8 +22,8 @@ class TradeValidatorTest {
         t.setTradeId("T1");
         t.setSymbol("AAPL");
         t.setSide("BUY");
-        t.setQuantity(100);
-        t.setPrice(150.25);
+        t.setQuantity(new BigDecimal("100"));
+        t.setPrice(new BigDecimal("150.25"));
         t.setTradeDate(LocalDate.of(2025, 9, 15));
         t.setSettlementDate(LocalDate.of(2025, 9, 17));
         t.setAccountId("ACC-1");
@@ -50,6 +51,19 @@ class TradeValidatorTest {
             assertEquals(500.0, TradeValidator.parseDoubleStrict("500").orElse(0.0), 1e-9);
             assertEquals(182.55, TradeValidator.parseDoubleStrict("182.55").orElse(0.0), 1e-9);
         }
+
+        @Test
+        void parseBigDecimalStrictAcceptsIntegerAndDecimalStrings() {
+            assertEquals(new BigDecimal("500"), TradeValidator.parseBigDecimalStrict("500").orElse(BigDecimal.ZERO));
+            assertEquals(new BigDecimal("182.55"), TradeValidator.parseBigDecimalStrict("182.55").orElse(BigDecimal.ZERO));
+        }
+
+        @Test
+        void allowsBuySellCaseInsensitive() {
+            TradeData t = validTrade();
+            t.setSide("sell");
+            assertFalse(TradeValidator.validate(t).isPresent());
+        }
     }
 
     @Nested
@@ -71,31 +85,38 @@ class TradeValidatorTest {
         }
 
         @Test
+        void rejectsInvalidSide() {
+            TradeData t = validTrade();
+            t.setSide("HOLD");
+            assertEquals("invalid side (must be BUY or SELL)", TradeValidator.validate(t).orElse(""));
+        }
+
+        @Test
         void rejectsNegativeQuantity() {
             TradeData t = validTrade();
-            t.setQuantity(-1);
+            t.setQuantity(new BigDecimal("-1"));
             assertEquals("negative quantity", TradeValidator.validate(t).orElse(""));
         }
 
         @Test
         void rejectsZeroQuantity() {
             TradeData t = validTrade();
-            t.setQuantity(0);
+            t.setQuantity(BigDecimal.ZERO);
             assertEquals("non-positive quantity", TradeValidator.validate(t).orElse(""));
         }
 
         @Test
         void rejectsNonPositivePrice() {
             TradeData t = validTrade();
-            t.setPrice(0);
+            t.setPrice(BigDecimal.ZERO);
             assertEquals("non-positive price", TradeValidator.validate(t).orElse(""));
         }
 
         @Test
-        void rejectsNaNPrice() {
+        void rejectsNullPrice() {
             TradeData t = validTrade();
-            t.setPrice(Double.NaN);
-            assertEquals("non-numeric price", TradeValidator.validate(t).orElse(""));
+            t.setPrice(null);
+            assertEquals("missing price", TradeValidator.validate(t).orElse(""));
         }
 
         @Test
@@ -110,6 +131,14 @@ class TradeValidatorTest {
             TradeData t = validTrade();
             t.setSettlementDate(null);
             assertEquals("missing settlement_date", TradeValidator.validate(t).orElse(""));
+        }
+
+        @Test
+        void rejectsSettlementBeforeTradeDate() {
+            TradeData t = validTrade();
+            t.setTradeDate(LocalDate.of(2025, 9, 17));
+            t.setSettlementDate(LocalDate.of(2025, 9, 15));
+            assertEquals("settlement_date before trade_date", TradeValidator.validate(t).orElse(""));
         }
 
         @Test
@@ -135,10 +164,10 @@ class TradeValidatorTest {
     class Edge {
 
         @Test
-        void acceptsQuantityOneAndMinimalPositivePrice() {
+        void acceptsQuantityOneAndSmallPositivePrice() {
             TradeData t = validTrade();
-            t.setQuantity(1);
-            t.setPrice(Double.MIN_NORMAL);
+            t.setQuantity(BigDecimal.ONE);
+            t.setPrice(new BigDecimal("0.0000001"));
             assertFalse(TradeValidator.validate(t).isPresent());
         }
 

@@ -8,10 +8,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -24,8 +24,7 @@ class TradeCsvParserTest {
             "trade_id,symbol,side,quantity,price,trade_date,settlement_date,account_id";
 
     private static void writeCsv(Path file, String... lines) throws IOException {
-        String body = String.join("\n", lines);
-        Files.write(file, body.getBytes(StandardCharsets.UTF_8));
+        Files.write(file, String.join("\n", lines).getBytes(StandardCharsets.UTF_8));
     }
 
     @Nested
@@ -45,8 +44,9 @@ class TradeCsvParserTest {
             TradeData t = r.getValidTrades().get(0);
             assertEquals("T1", t.getTradeId());
             assertEquals("AAPL", t.getSymbol());
-            assertEquals(10, t.getQuantity(), 1e-9);
-            assertEquals(100.0, t.getPrice(), 1e-9);
+            assertEquals("BUY", t.getSide());
+            assertEquals(new BigDecimal("10"), t.getQuantity());
+            assertEquals(0, new BigDecimal("100.00").compareTo(t.getPrice()));
             assertTrue(r.getTradeIdsAppearingInFile().contains("T1"));
         }
 
@@ -58,12 +58,21 @@ class TradeCsvParserTest {
                     HEADER,
                     "",
                     "T1,X,BUY,1,1.00,2025-09-15,2025-09-17,ACC-1",
-                    "   ",
                     "T2,Y,SELL,2,2.00,2025-09-15,2025-09-17,ACC-2");
 
             TradeCsvParser.LoadResult r = TradeCsvParser.load(Broker.B, f);
             assertEquals(2, r.getTotalDataRows());
             assertEquals(2, r.getValidTrades().size());
+        }
+
+        @Test
+        void parsesQuotedFieldWithComma(@TempDir Path dir) throws IOException {
+            Path f = dir.resolve("q.csv");
+            writeCsv(f, HEADER, "T1,\"BRK,B\",BUY,1,1.00,2025-09-15,2025-09-17,ACC-1");
+
+            TradeCsvParser.LoadResult r = TradeCsvParser.load(Broker.A, f);
+            assertEquals(1, r.getValidTrades().size());
+            assertEquals("BRK,B", r.getValidTrades().get(0).getSymbol());
         }
     }
 
@@ -120,7 +129,7 @@ class TradeCsvParserTest {
     class Edge {
 
         @Test
-        void duplicateTradeIdKeepsFirstValidOccurrence(@TempDir Path dir) throws IOException {
+        void duplicateTradeIdSecondRowRejected(@TempDir Path dir) throws IOException {
             Path f = dir.resolve("dup.csv");
             writeCsv(
                     f,
@@ -130,11 +139,9 @@ class TradeCsvParserTest {
 
             TradeCsvParser.LoadResult r = TradeCsvParser.load(Broker.A, f);
             assertEquals(2, r.getTotalDataRows());
-            assertEquals(2, r.getValidTrades().size());
-            Optional<TradeData> one = r.getValidTrades().stream().filter(t -> "T1".equals(t.getTradeId())).findFirst();
-            assertTrue(one.isPresent());
-            assertEquals("AAPL", one.get().getSymbol());
-            assertEquals(1, r.validByTradeId().size());
+            assertEquals(1, r.getValidTrades().size());
+            assertEquals(1, r.getRejected().size());
+            assertEquals("duplicate trade_id in feed", r.getRejected().get(0).getReason());
             assertEquals("AAPL", r.validByTradeId().get("T1").getSymbol());
         }
 

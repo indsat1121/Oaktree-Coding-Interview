@@ -39,7 +39,7 @@ Check what you already have:
 files/                          Sample broker CSV feeds
 scripts/mvn                     Wrapper: pick a JDK with javac, then run Maven
 Makefile                        make compile | make test | make run
-src/main/java/…                 Java sources
+src/main/java/…                 Java sources (`model`, `io`, `service`, `util`, `report`)
 src/test/java/…                 JUnit tests
 target/classes/                 Maven compile output (after ./scripts/mvn compile)
 bin/                            Optional: manual javac output (gitignored)
@@ -61,25 +61,21 @@ If `JAVA_HOME` already points at a JDK that includes `javac`, you can use `mvn c
 
 ### Run the program
 
-Compile (if needed), then run with `target/classes` on the classpath:
+The app depends on **Apache Commons CSV** at runtime. Easiest is Maven **exec** (puts `target/classes` plus dependencies on the classpath):
 
 ```bash
-./scripts/mvn -q compile && java -cp target/classes com.oaktree.reconciliation.TradeReconciliationMain
+./scripts/mvn -q compile exec:java
 ```
 
-If you already compiled:
-
-```bash
-java -cp target/classes com.oaktree.reconciliation.TradeReconciliationMain
-```
-
-Or: `make run` (compiles via Maven, then runs the same `java` line).
+Or: `make run`
 
 **Custom CSV paths** (Broker A file, then Broker B file):
 
 ```bash
-java -cp target/classes com.oaktree.reconciliation.TradeReconciliationMain /path/to/Trade_A.csv /path/to/Trade_B.csv
+./scripts/mvn -q compile exec:java -Dexec.args="files/Trade_A.csv files/Trade_B.csv"
 ```
+
+(Replace with your two paths; `exec.args` is a single string, so quote paths that contain spaces.)
 
 ### Unit tests
 
@@ -93,13 +89,7 @@ Or: `make test`
 
 ### Optional: compile without Maven
 
-If you do not use Maven, you can compile all main sources into `bin/` and run from there (tests are not included in this snippet):
-
-```bash
-mkdir -p bin
-javac -encoding UTF-8 -d bin $(find src/main/java -name '*.java')
-java -cp bin com.oaktree.reconciliation.TradeReconciliationMain
-```
+Not recommended: you would need **commons-csv** on the classpath as well as all `src/main/java` sources. Prefer `./scripts/mvn compile exec:java` above.
 
 ## Input format
 
@@ -110,7 +100,7 @@ trade_id,symbol,side,quantity,price,trade_date,settlement_date,account_id
 ```
 
 - Dates use ISO-8601 calendar dates (for example `2025-09-15`).
-- `quantity` and `price` are decimal numbers. The parser uses a simple comma split (no embedded commas in fields).
+- `quantity` and `price` are decimal numbers. Rows are read with **Apache Commons CSV** (RFC-style parsing, including quoted fields that contain commas).
 
 ## What the program does
 
@@ -129,6 +119,26 @@ trade_id,symbol,side,quantity,price,trade_date,settlement_date,account_id
 
 5. **Summary** — Per-broker totals, rejected and valid counts, number of matched trades, number of field conflicts, and counts of unmatched valid trades (A-only / B-only by presence of the id in the other broker’s file).
 
+## Improvements vs. original GitHub `main`
+
+This section compares **this repository** to the baseline described in the public README and file tree on [**`indsat1121/Oaktree-Coding-Interview` → `main`**](https://github.com/indsat1121/Oaktree-Coding-Interview/tree/main) (flat `src/`, `javac src/*.java`, `Trade_Data`, comma-split CSV, no Maven in docs).
+
+| Area | Original ([`main` on GitHub](https://github.com/indsat1121/Oaktree-Coding-Interview/tree/main)) | This codebase |
+|------|------------------------------------------------------------------------------------------------|---------------|
+| **Build** | Manual `javac src/*.java`; no `pom.xml` in README | **Maven** — `pom.xml`, dependencies (Commons CSV, JUnit), `maven-compiler-plugin`, `exec-maven-plugin`, `./scripts/mvn` helper for JDK selection |
+| **Run** | `java -cp src TradeReconciliationMain` | **`mvn compile exec:java`** / `make run` — runtime classpath includes libraries (e.g. Commons CSV) |
+| **Source layout** | Single `src/` folder, default package | **`src/main/java`** / **`src/test/java`**, packages under `com.oaktree.reconciliation` |
+| **Sample CSV paths** | README: `src/Trade_A.csv`, `src/Trade_B.csv` | **`files/Trade_A.csv`**, **`files/Trade_B.csv`** (defaults in `TradeReconciliationMain`) |
+| **Trade row model** | `Trade_Data`, snake_case getters / `double` amounts | **`TradeData`**, camelCase (`tradeId`, …), **`BigDecimal`** for quantity and price |
+| **CSV parsing** | README: simple comma split | **Apache Commons CSV** — headers, trim, RFC-style rows, **quoted fields with commas** |
+| **Validation** | Core rules from the exercise | Same core rules **plus**: **BUY/SELL** only (case-insensitive), **settlement_date ≥ trade_date**, **duplicate `trade_id`** in one feed rejected after first valid row |
+| **Reconciliation vs. UI** | Report printing tied to `main` | **`TradeReconciliationService`** for logic; **`ReconciliationReportPrinter`** + **`TradeAmountFormatter`** for text output |
+| **Types / collections** | Implicit / minimal typing in small codebase | **Explicit generics** on `List`, `Map`, `Set`, `Optional` where used |
+| **Tests** | Not described on GitHub README | **JUnit 5** — `TradeCsvParserTest`, `TradeValidatorTest`, `TradeReconciliationServiceTest` |
+| **CI** | No workflow in that README snapshot | **`.github/workflows/maven.yml`** — `mvn test` on push/PR to `main` / `master` |
+| **IDE / editor** | Not covered | **`.vscode/`** — recommended Java extensions, settings, **launch** / **tasks** for build & run |
+| **Docs** | Short README (compile/run only) | Extended README — Maven/JDK issues (e.g. JRE-only `JAVA_HOME`), Homebrew caveats, **Makefile**, improvement table |
+
 ## Packages
 
 | Package | Types |
@@ -137,4 +147,5 @@ trade_id,symbol,side,quantity,price,trade_date,settlement_date,account_id
 | `com.oaktree.reconciliation.model` | `TradeData`, `Broker`, `RejectedRecord`, `FieldConflict`, `ReconciliationResult`, `ReconciliationSummary` |
 | `com.oaktree.reconciliation.io` | `TradeCsvParser` |
 | `com.oaktree.reconciliation.service` | `TradeReconciliationService` |
-| `com.oaktree.reconciliation.util` | `TradeValidator` |
+| `com.oaktree.reconciliation.util` | `TradeValidator`, `TradeAmountFormatter` |
+| `com.oaktree.reconciliation.report` | `ReconciliationReportPrinter` |

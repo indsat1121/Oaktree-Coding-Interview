@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -65,7 +66,7 @@ class TradeReconciliationServiceTest {
                     TradeCsvParser.load(Broker.A, a),
                     TradeCsvParser.load(Broker.B, b));
 
-            assertEquals(182.50, out.getUnifiedTrades().get(0).getPrice(), 1e-6);
+            assertEquals(0, new BigDecimal("182.50").compareTo(out.getUnifiedTrades().get(0).getPrice()));
             assertEquals(1, out.getConflicts().size());
             assertEquals("price", out.getConflicts().get(0).getFieldName());
         }

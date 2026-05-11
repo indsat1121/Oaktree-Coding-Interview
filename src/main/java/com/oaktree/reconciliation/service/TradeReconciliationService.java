@@ -6,20 +6,19 @@ import com.oaktree.reconciliation.model.ReconciliationResult;
 import com.oaktree.reconciliation.model.ReconciliationSummary;
 import com.oaktree.reconciliation.model.RejectedRecord;
 import com.oaktree.reconciliation.model.TradeData;
+import com.oaktree.reconciliation.util.TradeAmountFormatter;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
 public final class TradeReconciliationService {
-
-    private static final double EPS = 1e-6;
 
     private TradeReconciliationService() {
     }
@@ -95,11 +94,19 @@ public final class TradeReconciliationService {
         if (!safeEquals(a.getSide(), b.getSide())) {
             out.add(new FieldConflict(tradeId, "side", a.getSide(), b.getSide()));
         }
-        if (!sameDouble(a.getQuantity(), b.getQuantity())) {
-            out.add(new FieldConflict(tradeId, "quantity", formatQuantity(a.getQuantity()), formatQuantity(b.getQuantity())));
+        if (!sameDecimal(a.getQuantity(), b.getQuantity())) {
+            out.add(new FieldConflict(
+                    tradeId,
+                    "quantity",
+                    TradeAmountFormatter.formatQuantity(a.getQuantity()),
+                    TradeAmountFormatter.formatQuantity(b.getQuantity())));
         }
-        if (!sameDouble(a.getPrice(), b.getPrice())) {
-            out.add(new FieldConflict(tradeId, "price", formatPrice(a.getPrice()), formatPrice(b.getPrice())));
+        if (!sameDecimal(a.getPrice(), b.getPrice())) {
+            out.add(new FieldConflict(
+                    tradeId,
+                    "price",
+                    TradeAmountFormatter.formatPrice(a.getPrice()),
+                    TradeAmountFormatter.formatPrice(b.getPrice())));
         }
         if (!Objects.equals(a.getTradeDate(), b.getTradeDate())) {
             out.add(new FieldConflict(tradeId, "trade_date", String.valueOf(a.getTradeDate()), String.valueOf(b.getTradeDate())));
@@ -123,18 +130,13 @@ public final class TradeReconciliationService {
         return x.equals(y);
     }
 
-    private static boolean sameDouble(double x, double y) {
-        return Math.abs(x - y) < EPS * Math.max(1.0, Math.max(Math.abs(x), Math.abs(y)));
-    }
-
-    public static String formatPrice(double p) {
-        return String.format(Locale.US, "%.2f", p);
-    }
-
-    public static String formatQuantity(double q) {
-        if (Math.abs(q - Math.rint(q)) < EPS) {
-            return String.valueOf((long) Math.rint(q));
+    private static boolean sameDecimal(BigDecimal x, BigDecimal y) {
+        if (x == null && y == null) {
+            return true;
         }
-        return String.format(Locale.US, "%s", q);
+        if (x == null || y == null) {
+            return false;
+        }
+        return x.compareTo(y) == 0;
     }
 }
