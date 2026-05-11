@@ -12,10 +12,16 @@ public final class TradeAmountFormatter {
     }
 
     public static String formatPrice(BigDecimal price) {
+        return formatPrice(price, 2, RoundingMode.HALF_UP);
+    }
+
+    public static String formatPrice(BigDecimal price, int scale, RoundingMode roundingMode) {
         if (price == null) {
             return "";
         }
-        return price.setScale(2, RoundingMode.HALF_UP).toPlainString();
+        RoundingMode mode = roundingMode != null ? roundingMode : RoundingMode.HALF_UP;
+        int s = scale > 0 ? scale : 2;
+        return price.setScale(s, mode).toPlainString();
     }
 
     /**

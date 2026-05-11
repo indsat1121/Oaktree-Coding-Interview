@@ -1,5 +1,6 @@
 package com.oaktree.reconciliation.report;
 
+import com.oaktree.reconciliation.config.ReconciliationConfig;
 import com.oaktree.reconciliation.model.Broker;
 import com.oaktree.reconciliation.model.FieldConflict;
 import com.oaktree.reconciliation.model.ReconciliationResult;
@@ -22,6 +23,10 @@ public final class ReconciliationReportPrinter {
     }
 
     public static void printLines(ReconciliationResult result, Consumer<String> out) {
+        printLines(result, out, null);
+    }
+
+    public static void printLines(ReconciliationResult result, Consumer<String> out, ReconciliationConfig config) {
         List<RejectedRecord> rejected = new ArrayList<>(result.getRejectedRecords());
         rejected.sort(Comparator
                 .comparing((RejectedRecord r) -> r.getBroker() == Broker.A ? 0 : 1)
@@ -42,7 +47,7 @@ public final class ReconciliationReportPrinter {
         out.accept("");
         out.accept("Unified trades: " + result.getUnifiedTrades().size() + " records");
         for (TradeData t : result.getUnifiedTrades()) {
-            out.accept(formatUnifiedCsvLine(t));
+            out.accept(formatUnifiedCsvLine(t, config));
         }
 
         ReconciliationSummary s = result.getSummary();
@@ -59,9 +64,20 @@ public final class ReconciliationReportPrinter {
     }
 
     public static String formatUnifiedCsvLine(TradeData t) {
+        return formatUnifiedCsvLine(t, null);
+    }
+
+    public static String formatUnifiedCsvLine(TradeData t, ReconciliationConfig config) {
+        String priceStr;
+        if (config != null) {
+            priceStr = TradeAmountFormatter.formatPrice(
+                    t.getPrice(), config.getPriceDisplayScale(), config.getPriceRoundingMode());
+        } else {
+            priceStr = TradeAmountFormatter.formatPrice(t.getPrice());
+        }
         return t.getTradeId() + "," + t.getSymbol() + "," + t.getSide() + ","
                 + TradeAmountFormatter.formatQuantity(t.getQuantity()) + ","
-                + TradeAmountFormatter.formatPrice(t.getPrice()) + ","
+                + priceStr + ","
                 + t.getTradeDate() + "," + t.getSettlementDate() + "," + t.getAccountId();
     }
 }

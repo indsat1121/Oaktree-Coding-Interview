@@ -1,142 +1,48 @@
 package com.oaktree.reconciliation.service;
 
+import com.oaktree.reconciliation.config.ReconciliationConfig;
+import com.oaktree.reconciliation.config.ReconciliationConfigLoader;
+import com.oaktree.reconciliation.config.ReconciliationStrategyType;
 import com.oaktree.reconciliation.io.TradeCsvParser;
-import com.oaktree.reconciliation.model.FieldConflict;
 import com.oaktree.reconciliation.model.ReconciliationResult;
-import com.oaktree.reconciliation.model.ReconciliationSummary;
-import com.oaktree.reconciliation.model.RejectedRecord;
-import com.oaktree.reconciliation.model.TradeData;
-import com.oaktree.reconciliation.util.TradeAmountFormatter;
+import com.oaktree.reconciliation.strategy.ExactMatchStrategy;
+import com.oaktree.reconciliation.strategy.PriorityBrokerStrategy;
+import com.oaktree.reconciliation.strategy.ReconciliationStrategy;
+import com.oaktree.reconciliation.strategy.ToleranceMatchStrategy;
 
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.TreeMap;
+import java.io.IOException;
 
+/**
+ * Facade for reconciliation: selects a {@link ReconciliationStrategy} from {@link ReconciliationConfig}.
+ */
 public final class TradeReconciliationService {
 
     private TradeReconciliationService() {
     }
 
+    public static ReconciliationStrategy newStrategy(ReconciliationConfig config) {
+        ReconciliationStrategyType type = config.getStrategyType();
+        if (type == ReconciliationStrategyType.TOLERANCE) {
+            return new ToleranceMatchStrategy(config);
+        }
+        if (type == ReconciliationStrategyType.PRIORITY_BROKER) {
+            return new PriorityBrokerStrategy(config);
+        }
+        return new ExactMatchStrategy(config);
+    }
+
+    public static ReconciliationResult reconcile(TradeCsvParser.LoadResult loadA, TradeCsvParser.LoadResult loadB, ReconciliationConfig config) {
+        return newStrategy(config).reconcile(loadA, loadB);
+    }
+
+    /**
+     * Uses {@link ReconciliationConfigLoader#load()} (classpath {@code application.properties} + env), or falls back to {@link ReconciliationConfig#defaultConfig()} if loading fails.
+     */
     public static ReconciliationResult reconcile(TradeCsvParser.LoadResult loadA, TradeCsvParser.LoadResult loadB) {
-        Map<String, TradeData> mapA = loadA.validByTradeId();
-        Map<String, TradeData> mapB = loadB.validByTradeId();
-
-        Set<String> matchedIds = new HashSet<>(mapA.keySet());
-        matchedIds.retainAll(mapB.keySet());
-
-        List<FieldConflict> conflicts = new ArrayList<>();
-        List<String> sortedMatched = new ArrayList<>(matchedIds);
-        Collections.sort(sortedMatched);
-        for (String id : sortedMatched) {
-            conflicts.addAll(compareFields(id, mapA.get(id), mapB.get(id)));
+        try {
+            return reconcile(loadA, loadB, ReconciliationConfigLoader.load());
+        } catch (IOException e) {
+            return reconcile(loadA, loadB, ReconciliationConfig.defaultConfig());
         }
-
-        Set<String> idsInFileA = loadA.getTradeIdsAppearingInFile();
-        Set<String> idsInFileB = loadB.getTradeIdsAppearingInFile();
-
-        Set<String> onlyA = new HashSet<>();
-        for (String id : mapA.keySet()) {
-            if (!idsInFileB.contains(id)) {
-                onlyA.add(id);
-            }
-        }
-
-        Set<String> onlyB = new HashSet<>();
-        for (String id : mapB.keySet()) {
-            if (!idsInFileA.contains(id)) {
-                onlyB.add(id);
-            }
-        }
-
-        List<TradeData> unified = new ArrayList<>();
-        TreeMap<String, TradeData> unifiedById = new TreeMap<>();
-        for (String id : matchedIds) {
-            unifiedById.put(id, mapA.get(id));
-        }
-        for (String id : onlyA) {
-            unifiedById.put(id, mapA.get(id));
-        }
-        for (String id : onlyB) {
-            unifiedById.put(id, mapB.get(id));
-        }
-        unified.addAll(unifiedById.values());
-
-        List<RejectedRecord> rejected = new ArrayList<>();
-        rejected.addAll(loadA.getRejected());
-        rejected.addAll(loadB.getRejected());
-
-        ReconciliationSummary summary = new ReconciliationSummary(
-                loadA.getTotalDataRows(),
-                loadA.getRejected().size(),
-                loadA.getValidTrades().size(),
-                loadB.getTotalDataRows(),
-                loadB.getRejected().size(),
-                loadB.getValidTrades().size(),
-                matchedIds.size(),
-                conflicts.size(),
-                onlyA.size(),
-                onlyB.size());
-
-        return new ReconciliationResult(rejected, conflicts, unified, summary);
-    }
-
-    private static List<FieldConflict> compareFields(String tradeId, TradeData a, TradeData b) {
-        List<FieldConflict> out = new ArrayList<>();
-        if (!safeEquals(a.getSymbol(), b.getSymbol())) {
-            out.add(new FieldConflict(tradeId, "symbol", a.getSymbol(), b.getSymbol()));
-        }
-        if (!safeEquals(a.getSide(), b.getSide())) {
-            out.add(new FieldConflict(tradeId, "side", a.getSide(), b.getSide()));
-        }
-        if (!sameDecimal(a.getQuantity(), b.getQuantity())) {
-            out.add(new FieldConflict(
-                    tradeId,
-                    "quantity",
-                    TradeAmountFormatter.formatQuantity(a.getQuantity()),
-                    TradeAmountFormatter.formatQuantity(b.getQuantity())));
-        }
-        if (!sameDecimal(a.getPrice(), b.getPrice())) {
-            out.add(new FieldConflict(
-                    tradeId,
-                    "price",
-                    TradeAmountFormatter.formatPrice(a.getPrice()),
-                    TradeAmountFormatter.formatPrice(b.getPrice())));
-        }
-        if (!Objects.equals(a.getTradeDate(), b.getTradeDate())) {
-            out.add(new FieldConflict(tradeId, "trade_date", String.valueOf(a.getTradeDate()), String.valueOf(b.getTradeDate())));
-        }
-        if (!Objects.equals(a.getSettlementDate(), b.getSettlementDate())) {
-            out.add(new FieldConflict(tradeId, "settlement_date", String.valueOf(a.getSettlementDate()), String.valueOf(b.getSettlementDate())));
-        }
-        if (!safeEquals(a.getAccountId(), b.getAccountId())) {
-            out.add(new FieldConflict(tradeId, "account_id", a.getAccountId(), b.getAccountId()));
-        }
-        return out;
-    }
-
-    private static boolean safeEquals(String x, String y) {
-        if (x == null && y == null) {
-            return true;
-        }
-        if (x == null || y == null) {
-            return false;
-        }
-        return x.equals(y);
-    }
-
-    private static boolean sameDecimal(BigDecimal x, BigDecimal y) {
-        if (x == null && y == null) {
-            return true;
-        }
-        if (x == null || y == null) {
-            return false;
-        }
-        return x.compareTo(y) == 0;
     }
 }

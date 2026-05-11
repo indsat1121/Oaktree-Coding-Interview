@@ -39,7 +39,8 @@ Check what you already have:
 files/                          Sample broker CSV feeds
 scripts/mvn                     Wrapper: pick a JDK with javac, then run Maven
 Makefile                        make compile | make test | make run
-src/main/java/…                 Java sources (`model`, `io`, `service`, `util`, `report`)
+src/main/resources/             `application.properties` (reconciliation + feed paths)
+src/main/java/…                 Java sources (`config`, `strategy`, `model`, `io`, `service`, `util`, `report`)
 src/test/java/…                 JUnit tests
 target/classes/                 Maven compile output (after ./scripts/mvn compile)
 bin/                            Optional: manual javac output (gitignored)
@@ -111,11 +112,13 @@ trade_id,symbol,side,quantity,price,trade_date,settlement_date,account_id
 3. **Conflicts** — For each matched pair, compare symbol, side, quantity, price, trade and settlement dates, and account id. Disagreements are listed under **Conflict report** (Broker A vs Broker B values).
 
 4. **Unified trades** — Includes:
-   - Every matched trade, using **Broker A** as the source of truth when values differ.
+   - Every matched trade. **Which broker wins on disagreements** depends on the active **reconciliation strategy** and **`reconciliation.primary-broker`** (see below). The default **`exact`** strategy keeps the original exercise behaviour: **Broker A** is the source of truth for the unified row when fields differ.
    - Valid trades from A whose `trade_id` does **not** appear anywhere in B’s file.
    - Valid trades from B whose `trade_id` does **not** appear anywhere in A’s file.
 
    If the same `trade_id` appears in both files but only one side validates (for example A valid, B rejected), that id is **not** included in the unified list.
+
+   **Quantities and prices** are carried as **`BigDecimal`** end-to-end; report and conflict strings use the configured **scale** and **rounding mode** from `application.properties` (or env overrides).
 
 5. **Summary** — Per-broker totals, rejected and valid counts, number of matched trades, number of field conflicts, and counts of unmatched valid trades (A-only / B-only by presence of the id in the other broker’s file).
 
@@ -134,16 +137,30 @@ This section compares **this repository** to the baseline described in the publi
 | **Validation** | Core rules from the exercise | Same core rules **plus**: **BUY/SELL** only (case-insensitive), **settlement_date ≥ trade_date**, **duplicate `trade_id`** in one feed rejected after first valid row |
 | **Reconciliation vs. UI** | Report printing tied to `main` | **`TradeReconciliationService`** for logic; **`ReconciliationReportPrinter`** + **`TradeAmountFormatter`** for text output |
 | **Types / collections** | Implicit / minimal typing in small codebase | **Explicit generics** on `List`, `Map`, `Set`, `Optional` where used |
-| **Tests** | Not described on GitHub README | **JUnit 5** — `TradeCsvParserTest`, `TradeValidatorTest`, `TradeReconciliationServiceTest` |
+| **Tests** | Not described on GitHub README | **JUnit 5** — `TradeCsvParserTest`, `TradeValidatorTest`, `TradeReconciliationServiceTest`, `ReconciliationStrategyTest` |
 | **CI** | No workflow in that README snapshot | **`.github/workflows/maven.yml`** — `mvn test` on push/PR to `main` / `master` |
 | **IDE / editor** | Not covered | **`.vscode/`** — recommended Java extensions, settings, **launch** / **tasks** for build & run |
 | **Docs** | Short README (compile/run only) | Extended README — Maven/JDK issues (e.g. JRE-only `JAVA_HOME`), Homebrew caveats, **Makefile**, improvement table |
+| **Reconciliation rules** | Fixed “A wins” behaviour implied by sample | **Strategy pattern** — pluggable `ReconciliationStrategy` (`exact`, `tolerance`, `priority-broker`) |
+| **Configuration** | Hard-coded paths / behaviour | **`application.properties`** + **environment variable** overrides for strategy, tolerance, primary broker, feed paths, price scale/rounding |
+
+### Strategy pattern, external configuration, and `BigDecimal` (not on upstream `main`)
+
+The public baseline on [**`indsat1121/Oaktree-Coding-Interview` → `main`**](https://github.com/indsat1121/Oaktree-Coding-Interview/tree/main) does **not** include the items below; they reflect how this codebase would evolve toward **production-style** reconciliation.
+
+| Topic | What was added |
+|--------|----------------|
+| **Strategy pattern** | `ReconciliationStrategy` with implementations **`ExactMatchStrategy`** (strict field compare; unified matched row always Broker **A** when values differ — matches the original exercise), **`ToleranceMatchStrategy`** (treats prices as equal when \|A−B\| ≤ `reconciliation.price-tolerance`; tolerance ≤ 0 behaves like exact), and **`PriorityBrokerStrategy`** (strict compare; unified row follows **`reconciliation.primary-broker`**). `TradeReconciliationService` selects the implementation from `ReconciliationConfig`. |
+| **Externalized configuration** | Classpath **`src/main/resources/application.properties`**: `reconciliation.strategy` (`exact` \| `tolerance` \| `priority-broker`), `reconciliation.price-tolerance`, `reconciliation.primary-broker` (`A` \| `B`), `trade.feed.path.a` / `trade.feed.path.b`, `financial.price.scale`, `financial.price.rounding-mode` (e.g. `HALF_UP`). **Env overrides** (highest precedence): `RECONCILIATION_STRATEGY`, `RECONCILIATION_PRICE_TOLERANCE`, `RECONCILIATION_PRIMARY_BROKER`, `TRADE_FEED_A`, `TRADE_FEED_B`, `FINANCIAL_PRICE_SCALE`, `FINANCIAL_PRICE_ROUNDING_MODE`. CLI still accepts **two path arguments** when provided; they override only the two feed paths for that run. |
+| **Financial precision** | **`BigDecimal`** for quantity and price in `TradeData`; conflict diff strings and unified CSV price formatting use **`TradeAmountFormatter`** with the configured **scale** and **`RoundingMode`** so rounding is explicit and audit-friendly (not `double`). |
 
 ## Packages
 
 | Package | Types |
 |---------|--------|
 | `com.oaktree.reconciliation` | `TradeReconciliationMain` |
+| `com.oaktree.reconciliation.config` | `ReconciliationConfig`, `ReconciliationConfigLoader`, `ReconciliationStrategyType` |
+| `com.oaktree.reconciliation.strategy` | `ReconciliationStrategy`, `AbstractReconciliationStrategy`, `ExactMatchStrategy`, `ToleranceMatchStrategy`, `PriorityBrokerStrategy` |
 | `com.oaktree.reconciliation.model` | `TradeData`, `Broker`, `RejectedRecord`, `FieldConflict`, `ReconciliationResult`, `ReconciliationSummary` |
 | `com.oaktree.reconciliation.io` | `TradeCsvParser` |
 | `com.oaktree.reconciliation.service` | `TradeReconciliationService` |
