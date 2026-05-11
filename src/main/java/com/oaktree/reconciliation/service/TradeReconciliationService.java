@@ -1,9 +1,19 @@
+package com.oaktree.reconciliation.service;
+
+import com.oaktree.reconciliation.io.TradeCsvParser;
+import com.oaktree.reconciliation.model.FieldConflict;
+import com.oaktree.reconciliation.model.ReconciliationResult;
+import com.oaktree.reconciliation.model.ReconciliationSummary;
+import com.oaktree.reconciliation.model.RejectedRecord;
+import com.oaktree.reconciliation.model.TradeData;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -15,8 +25,8 @@ public final class TradeReconciliationService {
     }
 
     public static ReconciliationResult reconcile(TradeCsvParser.LoadResult loadA, TradeCsvParser.LoadResult loadB) {
-        Map<String, Trade_Data> mapA = loadA.validByTradeId();
-        Map<String, Trade_Data> mapB = loadB.validByTradeId();
+        Map<String, TradeData> mapA = loadA.validByTradeId();
+        Map<String, TradeData> mapB = loadB.validByTradeId();
 
         Set<String> matchedIds = new HashSet<>(mapA.keySet());
         matchedIds.retainAll(mapB.keySet());
@@ -45,8 +55,8 @@ public final class TradeReconciliationService {
             }
         }
 
-        List<Trade_Data> unified = new ArrayList<>();
-        TreeMap<String, Trade_Data> unifiedById = new TreeMap<>();
+        List<TradeData> unified = new ArrayList<>();
+        TreeMap<String, TradeData> unifiedById = new TreeMap<>();
         for (String id : matchedIds) {
             unifiedById.put(id, mapA.get(id));
         }
@@ -77,7 +87,7 @@ public final class TradeReconciliationService {
         return new ReconciliationResult(rejected, conflicts, unified, summary);
     }
 
-    private static List<FieldConflict> compareFields(String tradeId, Trade_Data a, Trade_Data b) {
+    private static List<FieldConflict> compareFields(String tradeId, TradeData a, TradeData b) {
         List<FieldConflict> out = new ArrayList<>();
         if (!safeEquals(a.getSymbol(), b.getSymbol())) {
             out.add(new FieldConflict(tradeId, "symbol", a.getSymbol(), b.getSymbol()));
@@ -91,14 +101,14 @@ public final class TradeReconciliationService {
         if (!sameDouble(a.getPrice(), b.getPrice())) {
             out.add(new FieldConflict(tradeId, "price", formatPrice(a.getPrice()), formatPrice(b.getPrice())));
         }
-        if (!java.util.Objects.equals(a.getTrade_date(), b.getTrade_date())) {
-            out.add(new FieldConflict(tradeId, "trade_date", String.valueOf(a.getTrade_date()), String.valueOf(b.getTrade_date())));
+        if (!Objects.equals(a.getTradeDate(), b.getTradeDate())) {
+            out.add(new FieldConflict(tradeId, "trade_date", String.valueOf(a.getTradeDate()), String.valueOf(b.getTradeDate())));
         }
-        if (!java.util.Objects.equals(a.getSettlement_date(), b.getSettlement_date())) {
-            out.add(new FieldConflict(tradeId, "settlement_date", String.valueOf(a.getSettlement_date()), String.valueOf(b.getSettlement_date())));
+        if (!Objects.equals(a.getSettlementDate(), b.getSettlementDate())) {
+            out.add(new FieldConflict(tradeId, "settlement_date", String.valueOf(a.getSettlementDate()), String.valueOf(b.getSettlementDate())));
         }
-        if (!safeEquals(a.getAccount_id(), b.getAccount_id())) {
-            out.add(new FieldConflict(tradeId, "account_id", a.getAccount_id(), b.getAccount_id()));
+        if (!safeEquals(a.getAccountId(), b.getAccountId())) {
+            out.add(new FieldConflict(tradeId, "account_id", a.getAccountId(), b.getAccountId()));
         }
         return out;
     }
@@ -117,11 +127,11 @@ public final class TradeReconciliationService {
         return Math.abs(x - y) < EPS * Math.max(1.0, Math.max(Math.abs(x), Math.abs(y)));
     }
 
-    static String formatPrice(double p) {
+    public static String formatPrice(double p) {
         return String.format(Locale.US, "%.2f", p);
     }
 
-    static String formatQuantity(double q) {
+    public static String formatQuantity(double q) {
         if (Math.abs(q - Math.rint(q)) < EPS) {
             return String.valueOf((long) Math.rint(q));
         }

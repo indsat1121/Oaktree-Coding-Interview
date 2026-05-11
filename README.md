@@ -4,26 +4,102 @@ Small Java module that ingests two broker CSV feeds for the same day, validates 
 
 ## Requirements
 
-- JDK 8 or newer (`javac` and `java` on your `PATH`)
+- **JDK** 8 or newer (must include `javac`, not a JRE-only install such as the legacy Java browser plug-in)
+- **Cursor / VS Code:** Open this **repository root** (the folder that contains `pom.xml`), not a parent directory. Install the [Extension Pack for Java](https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-java-pack) when Cursor prompts for **recommended workspace extensions** (see `.vscode/extensions.json`). Wait until the status bar finishes **“Opening Java projects / Importing Maven project(s)…”**. If Java still does not activate: Command Palette → **Java: Clean Java Language Server Workspace** → reload.
+
+If every `.java` file stays red, pick a **JDK** for the tooling: Command Palette → **Java: Configure Java Runtime** → **JDK** for the workspace or for **Java LS** (language server). Plain JRE installs are not enough for navigation and errors.
+
+This repo ships **`.vscode/settings.json`**, **`launch.json`**, **`tasks.json`**, and **`extensions.json`** so the workspace is treated as a **Maven Java** project.
+
+### Maven: “No compiler is provided… JRE rather than a JDK”
+
+`mvn` uses `JAVA_HOME`. If it points at a **JRE**, compilation fails. Fix either:
+
+1. **macOS:** install a **JDK** (not only a JRE), then e.g. `export JAVA_HOME=$(/usr/libexec/java_home -v 17)` (adjust the version flag to match what you installed).  
+2. Run **`./scripts/mvn test`** (or **`make test`**): the script tries `/usr/libexec/java_home` versions `21` → `1.8` and picks the first home that contains `bin/javac`.
+
+#### If `brew install …` crashes (e.g. `version.rb … Version value must be a string`)
+
+That error comes from a **broken or very old Homebrew** under `/usr/local`, not from Java. You do **not** need Homebrew to get a JDK:
+
+- **Installer (simplest):** [Eclipse Temurin 17 (LTS) macOS `.pkg`)](https://adoptium.net/temurin/releases/?os=mac&arch=any&package=jdk&version=17) — run the installer, then `export JAVA_HOME=$(/usr/libexec/java_home -v 17)` (or pick the shown JVM from `/usr/libexec/java_home -V`).
+- **Apple’s builds:** [Oracle JDK](https://www.oracle.com/java/technologies/downloads/) or Amazon Corretto — same idea: install, then point `JAVA_HOME` at the new `Contents/Home` path.
+
+To **repair Homebrew** (optional, for other tools): install the current script from [brew.sh](https://brew.sh/) (Apple Silicon uses `/opt/homebrew`; old Intel installs in `/usr/local` often need a fresh install or `brew update-reset` once `brew` runs again).
+
+Check what you already have:
+
+```bash
+/usr/libexec/java_home -V
+```
+
+## Project layout
+
+```text
+files/                          Sample broker CSV feeds
+scripts/mvn                     Wrapper: pick a JDK with javac, then run Maven
+Makefile                        make compile | make test | make run
+src/main/java/…                 Java sources
+src/test/java/…                 JUnit tests
+target/classes/                 Maven compile output (after ./scripts/mvn compile)
+bin/                            Optional: manual javac output (gitignored)
+```
 
 ## Quick start
 
-From the repository root:
+Run everything from the **repository root** (the folder that contains `pom.xml`) so default paths `files/Trade_A.csv` and `files/Trade_B.csv` resolve.
+
+### Compile
 
 ```bash
-javac src/*.java
-java -cp src TradeReconciliationMain
+./scripts/mvn compile
 ```
 
-By default this reads `src/Trade_A.csv` (Broker A) and `src/Trade_B.csv` (Broker B).
+Or: `make compile`
 
-### Custom file paths
+If `JAVA_HOME` already points at a JDK that includes `javac`, you can use `mvn compile` instead of `./scripts/mvn`.
+
+### Run the program
+
+Compile (if needed), then run with `target/classes` on the classpath:
 
 ```bash
-java -cp src TradeReconciliationMain /path/to/Trade_A.csv /path/to/Trade_B.csv
+./scripts/mvn -q compile && java -cp target/classes com.oaktree.reconciliation.TradeReconciliationMain
 ```
 
-The first argument is Broker A’s feed; the second is Broker B’s feed.
+If you already compiled:
+
+```bash
+java -cp target/classes com.oaktree.reconciliation.TradeReconciliationMain
+```
+
+Or: `make run` (compiles via Maven, then runs the same `java` line).
+
+**Custom CSV paths** (Broker A file, then Broker B file):
+
+```bash
+java -cp target/classes com.oaktree.reconciliation.TradeReconciliationMain /path/to/Trade_A.csv /path/to/Trade_B.csv
+```
+
+### Unit tests
+
+Tests live under `src/test/java` (JUnit 5).
+
+```bash
+./scripts/mvn test
+```
+
+Or: `make test`
+
+### Optional: compile without Maven
+
+If you do not use Maven, you can compile all main sources into `bin/` and run from there (tests are not included in this snippet):
+
+```bash
+mkdir -p bin
+javac -encoding UTF-8 -d bin $(find src/main/java -name '*.java')
+java -cp bin com.oaktree.reconciliation.TradeReconciliationMain
+```
 
 ## Input format
 
@@ -53,17 +129,12 @@ trade_id,symbol,side,quantity,price,trade_date,settlement_date,account_id
 
 5. **Summary** — Per-broker totals, rejected and valid counts, number of matched trades, number of field conflicts, and counts of unmatched valid trades (A-only / B-only by presence of the id in the other broker’s file).
 
-## Main source layout
+## Packages
 
-| File | Purpose |
-|------|---------|
-| `TradeReconciliationMain.java` | Entry point and console report |
-| `TradeCsvParser.java` | CSV load, row parse, `LoadResult` (valid, rejected, ids seen in file) |
-| `TradeValidator.java` | Business validation on `Trade_Data` |
-| `TradeReconciliationService.java` | Match, conflict detection, unified list, summary |
-| `Trade_Data.java` | Trade row model |
-| `Broker.java` | Broker A / B labels |
-| `RejectedRecord.java`, `FieldConflict.java` | Rejection and conflict DTOs |
-| `ReconciliationResult.java`, `ReconciliationSummary.java` | Aggregated output |
-
-Sample inputs: `src/Trade_A.csv`, `src/Trade_B.csv`.
+| Package | Types |
+|---------|--------|
+| `com.oaktree.reconciliation` | `TradeReconciliationMain` |
+| `com.oaktree.reconciliation.model` | `TradeData`, `Broker`, `RejectedRecord`, `FieldConflict`, `ReconciliationResult`, `ReconciliationSummary` |
+| `com.oaktree.reconciliation.io` | `TradeCsvParser` |
+| `com.oaktree.reconciliation.service` | `TradeReconciliationService` |
+| `com.oaktree.reconciliation.util` | `TradeValidator` |

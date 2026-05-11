@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Launch TradeReconciliationMain",
+      "request": "launch",
+      "mainClass": "com.oaktree.reconciliation.TradeReconciliationMain",
+      "projectName": "trade-reconciliation",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

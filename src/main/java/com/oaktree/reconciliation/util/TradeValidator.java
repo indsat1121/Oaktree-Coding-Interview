@@ -1,3 +1,7 @@
+package com.oaktree.reconciliation.util;
+
+import com.oaktree.reconciliation.model.TradeData;
+
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Optional;
@@ -10,8 +14,8 @@ public final class TradeValidator {
     /**
      * @return empty if valid, otherwise a single human-readable rejection reason
      */
-    public static Optional<String> validate(Trade_Data t) {
-        if (isBlank(t.getTrade_id())) {
+    public static Optional<String> validate(TradeData t) {
+        if (isBlank(t.getTradeId())) {
             return Optional.of("missing trade_id");
         }
         if (isBlank(t.getSymbol())) {
@@ -32,13 +36,13 @@ public final class TradeValidator {
         if (t.getPrice() <= 0) {
             return Optional.of("non-positive price");
         }
-        if (t.getTrade_date() == null) {
+        if (t.getTradeDate() == null) {
             return Optional.of("missing trade_date");
         }
-        if (t.getSettlement_date() == null) {
+        if (t.getSettlementDate() == null) {
             return Optional.of("missing settlement_date");
         }
-        if (isBlank(t.getAccount_id())) {
+        if (isBlank(t.getAccountId())) {
             return Optional.of("missing account_id");
         }
         return Optional.empty();
