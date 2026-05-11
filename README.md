@@ -1,4 +1,4 @@
-# Trade feed reconciliation
+# Trade Feed reconciliation
 
 Small Java module that ingests two broker CSV feeds for the same day, validates rows, matches trades by `trade_id`, reports field-level conflicts, and emits a unified trade list plus a summary.
 
